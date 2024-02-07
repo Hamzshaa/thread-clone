@@ -1,25 +1,25 @@
-import Post from "../models/postModel.js";
 import User from "../models/userModel.js";
+import Post from "../models/postModel.js";
 import { v2 as cloudinary } from "cloudinary";
 
-const createPost = async (req, res) => {
+export const createPost = async (req, res) => {
+  const { postedBy, text } = req.body;
+  let { img } = req.body;
   try {
-    const { postedBy, text } = req.body;
-    let { img } = req.body;
-
     if (!postedBy || !text) {
       return res
         .status(400)
-        .json({ error: "Postedby and text fields are required" });
+        .json({ error: "Posted By and Text fields are required" });
     }
 
     const user = await User.findById(postedBy);
+
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
     if (user._id.toString() !== req.user._id.toString()) {
-      return res.status(401).json({ error: "Unauthorized to create post" });
+      return res.status(400).json({ error: "Unauthorized to create post" });
     }
 
     const maxLength = 500;
@@ -39,14 +39,14 @@ const createPost = async (req, res) => {
 
     res.status(201).json(newPost);
   } catch (err) {
-    res.status(500).json({ error: err.message });
-    console.log(err);
+    return res.status(500).json({ error: err.message });
   }
 };
 
-const getPost = async (req, res) => {
+export const getPost = async (req, res) => {
+  const { id } = req.params;
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findById(id);
 
     if (!post) {
       return res.status(404).json({ error: "Post not found" });
@@ -54,13 +54,15 @@ const getPost = async (req, res) => {
 
     res.status(200).json(post);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
 
-const deletePost = async (req, res) => {
+export const deletePost = async (req, res) => {
+  const { id } = req.params;
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findById(id);
+
     if (!post) {
       return res.status(404).json({ error: "Post not found" });
     }
@@ -70,78 +72,75 @@ const deletePost = async (req, res) => {
     }
 
     if (post.img) {
-      const imgId = post.img.split("/").pop().split(".")[0];
-      await cloudinary.uploader.destroy(imgId);
+      await cloudinary.uploader.destroy(
+        post.img.split("/").pop().split(".")[0]
+      );
     }
 
-    await Post.findByIdAndDelete(req.params.id);
+    await Post.findByIdAndDelete(id);
 
     res.status(200).json({ message: "Post deleted successfully" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
 
-const likeUnlikePost = async (req, res) => {
+export const likeUnlikePost = async (req, res) => {
+  const { id: postId } = req.params;
+  const userId = req.user._id;
   try {
-    const { id: postId } = req.params;
-    const userId = req.user._id;
-
     const post = await Post.findById(postId);
 
     if (!post) {
       return res.status(404).json({ error: "Post not found" });
     }
 
-    const userLikedPost = post.likes.includes(userId);
+    const userLikedPost = await post.likes.includes(userId);
 
     if (userLikedPost) {
-      // Unlike post
+      // Unlike Post
       await Post.updateOne({ _id: postId }, { $pull: { likes: userId } });
       res.status(200).json({ message: "Post unliked successfully" });
     } else {
-      // Like post
-      post.likes.push(userId);
-      await post.save();
+      // Like Post
+      await Post.updateOne({ _id: postId }, { $push: { likes: userId } });
       res.status(200).json({ message: "Post liked successfully" });
     }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
 
-const replyToPost = async (req, res) => {
+export const replyToPost = async (req, res) => {
+  const { id: postId } = req.params;
+  const { _id: userId, profilePic: userProfilePic, username } = req.user;
+  const { text } = req.body;
   try {
-    const { text } = req.body;
-    const postId = req.params.id;
-    const userId = req.user._id;
-    const userProfilePic = req.user.profilePic;
-    const username = req.user.username;
-
     if (!text) {
       return res.status(400).json({ error: "Text field is required" });
     }
 
     const post = await Post.findById(postId);
+
     if (!post) {
       return res.status(404).json({ error: "Post not found" });
     }
 
-    const reply = { userId, text, userProfilePic, username };
+    post.replies.push({ userId, text, userProfilePic, username });
 
-    post.replies.push(reply);
-    await post.save();
+    post.save();
 
-    res.status(200).json(reply);
+    res.status(200).json({ message: "Reply added successfully", post });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
 
-const getFeedPosts = async (req, res) => {
+export const getFeedPosts = async (req, res) => {
+  const userId = req.user._id;
   try {
-    const userId = req.user._id;
     const user = await User.findById(userId);
+
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -154,11 +153,11 @@ const getFeedPosts = async (req, res) => {
 
     res.status(200).json(feedPosts);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
 
-const getUserPosts = async (req, res) => {
+export const getUserPosts = async (req, res) => {
   const { username } = req.params;
   try {
     const user = await User.findOne({ username });
@@ -171,17 +170,7 @@ const getUserPosts = async (req, res) => {
     });
 
     res.status(200).json(posts);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
-};
-
-export {
-  createPost,
-  getPost,
-  deletePost,
-  likeUnlikePost,
-  replyToPost,
-  getFeedPosts,
-  getUserPosts,
 };
