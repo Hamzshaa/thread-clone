@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import {
   Button,
   Flex,
@@ -17,7 +18,10 @@ import usePreviewImg from "../hooks/usePreviewImg";
 import useShowToast from "../hooks/useShowToast";
 
 export default function UpdateProfilePage() {
-  const [user, setUser] = useRecoilState(userAtom);
+  let [user, setUser] = useRecoilState(userAtom);
+  if (user.user) {
+    user = user.user;
+  }
   const [inputs, setInputs] = useState({
     name: user.name,
     username: user.username,
@@ -27,6 +31,7 @@ export default function UpdateProfilePage() {
   });
   const fileRef = useRef(null);
   const [updating, setUpdating] = useState(false);
+  const navigate = useNavigate();
 
   const showToast = useShowToast();
 
@@ -158,8 +163,9 @@ export default function UpdateProfilePage() {
               _hover={{
                 bg: "red.500",
               }}
+              onClick={() => navigate(-1)}
             >
-              Cancel
+              CancelS
             </Button>
             <Button
               bg={"green.400"}

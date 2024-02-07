@@ -16,8 +16,6 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 
 const UserPost = ({ likes, replies, postImg, postTitle }) => {
-  const [liked, setLiked] = useState(false);
-
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handlePostDots = (e) => {
